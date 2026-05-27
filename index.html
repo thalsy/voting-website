@@ -383,26 +383,46 @@
 
     </div>
 
-    <script>
 
-        // =======================
-        // TEAMS
-        // =======================
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import {
+            getFirestore,
+            doc,
+            getDoc,
+            setDoc,
+            updateDoc,
+            increment
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+        const firebaseConfig = {
+            apiKey: "AIzaSyBg0gDrrWMWZpTjnsxEkwbvgDBEmvb1zzM",
+            authDomain: "voting-website-89bf4.firebaseapp.com",
+            projectId: "voting-website-89bf4",
+            storageBucket: "voting-website-89bf4.appspot.com",
+            messagingSenderId: "134789494066",
+            appId: "1:134789494066:web:469da04c1a09f36c37532b"
+        };
+
+        // INIT FIREBASE
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const voteRef = doc(db, "votes", "global");
+
+        // ONE VOTE CHECK
+        let voted = localStorage.getItem("voted") === "true";
+
+        // ADMIN
         const adminPassword = prompt("Enter password: (see max)");
 
         if (adminPassword === "max123") {
-
             document.querySelector(".admin").style.display = "block";
-
         } else {
-
             document.querySelector(".admin").style.display = "none";
-
         }
 
+        // TEAM PASSWORDS
         const teamPasswords = {
-
             "True North Party": "north123",
             "Maple Leaf Party of Canada (MLPC)": "maple123",
             "Mixed Freedom Party": "freedom123",
@@ -411,233 +431,144 @@
             "Canadian Stars Party": "stars123",
             "Modern Future Party": "future123",
             "Parity Party": "parity123"
-
         };
 
-        const parties = [
+        const parties = Object.keys(teamPasswords);
 
-            "True North Party",
-            "Maple Leaf Party of Canada (MLPC)",
-            "Mixed Freedom Party",
-            "THE United Party",
-            "Workers Association of Canada",
-            "Canadian Stars Party",
-            "Modern Future Party",
-            "Parity Party"
+        let votes = {};
 
-        ];
+        // LOAD VOTES
+        async function loadVotes() {
+            const snap = await getDoc(voteRef);
 
-        // =======================
-        // STORAGE
-        // =======================
+            if (snap.exists()) {
+                votes = snap.data();
+            } else {
+                votes = {
+                    "True North Party": 0,
+                    "Maple Leaf Party of Canada (MLPC)": 0,
+                    "Mixed Freedom Party": 0,
+                    "THE United Party": 0,
+                    "Workers Association of Canada": 0,
+                    "Canadian Stars Party": 0,
+                    "Modern Future Party": 0,
+                    "Parity Party": 0
+                };
 
-        let votes = JSON.parse(localStorage.getItem("votes")) || {
+                await setDoc(voteRef, votes);
+            }
 
-            "True North Party": 0,
-            "Maple Leaf Party of Canada (MLPC)": 0,
-            "Mixed Freedom Party": 0,
-            "THE United Party": 0,
-            "Workers Association of Canada": 0,
-            "Canadian Stars Party": 0,
-            "Modern Future Party": 0,
-            "Parity Party": 0
-
-        };
-
-        let alreadyVoted = localStorage.getItem("alreadyVoted");
-
-        // =======================
-        // UPDATE RESULTS
-        // =======================
-
-        function updateResults() {
-
-            parties.forEach(team => {
-
-                document.getElementById(`${team}-count`).innerText = votes[team];
-
-            });
-
+            updateResults();
         }
 
-        updateResults();
+        // UPDATE UI
+        function updateResults() {
+            parties.forEach(team => {
+                const el = document.getElementById(`${team}-count`);
+                if (el) el.innerText = votes[team] ?? 0;
+            });
+        }
 
-        // =======================
-        // BLOCK SAME TEAM
-        // =======================
-
+        // PARTY SELECT
         const userPartySelect = document.getElementById("userParty");
-
         const cards = document.querySelectorAll(".party");
 
         userPartySelect.addEventListener("change", () => {
-
             const selectedTeam = userPartySelect.value;
 
             cards.forEach(card => {
-
                 card.classList.remove("disabled");
 
                 const oldLock = card.querySelector(".locked");
-
-                if (oldLock) {
-                    oldLock.remove();
-                }
+                if (oldLock) oldLock.remove();
 
                 if (card.dataset.party === selectedTeam) {
-
                     card.classList.add("disabled");
 
                     const lock = document.createElement("div");
-
                     lock.className = "locked";
-
                     lock.innerText = "YOUR TEAM";
-
                     card.appendChild(lock);
-
                 }
-
             });
-
         });
 
-        // =======================
         // VOTING
-        // =======================
-
         cards.forEach(card => {
-
             const btn = card.querySelector(".vote-btn");
 
-            btn.addEventListener("click", () => {
-
-                if (alreadyVoted) {
-
-                    alert("You have already voted.");
-
+            btn.addEventListener("click", async () => {
+                if (voted) {
+                    alert("You already voted on this device.");
                     return;
                 }
 
                 const selectedTeam = userPartySelect.value;
 
-                // NO PARTY SELECTED
                 if (!selectedTeam) {
-
                     alert("Select your party first.");
-
                     return;
                 }
 
-                // ASK FOR PARTY PASSWORD
-                const enteredPassword = prompt(
-                    `Enter the password for ${selectedTeam}`
-                );
+                const enteredPassword = prompt(`Enter the password for ${selectedTeam}`);
 
-                // WRONG PASSWORD
                 if (enteredPassword !== teamPasswords[selectedTeam]) {
-
                     alert("Incorrect party password.");
-
                     return;
                 }
 
                 const voteTeam = card.dataset.party;
 
-                // BLOCK OWN TEAM
                 if (voteTeam === selectedTeam) {
-
                     alert("You cannot vote for your own team.");
-
                     return;
                 }
 
-                // CONFIRM VOTE
-                const confirmVote = confirm(
-                    `Are you sure you want to vote for ${voteTeam}?`
-                );
+                const confirmVote = confirm(`Are you sure you want to vote for ${voteTeam}?`);
+                if (!confirmVote) return;
 
-                if (!confirmVote) {
-                    return;
-                }
+                await updateDoc(voteRef, {
+                    [voteTeam]: increment(1)
+                });
 
-                // ADD VOTE
-                votes[voteTeam]++;
-
-                // SAVE
-                localStorage.setItem("votes", JSON.stringify(votes));
-
-                localStorage.setItem("alreadyVoted", "true");
-
-                alreadyVoted = true;
-
-                updateResults();
+                localStorage.setItem("voted", "true");
+                voted = true;
 
                 document.getElementById("successBox").style.display = "block";
 
-                // DISABLE BUTTONS
                 document.querySelectorAll(".vote-btn").forEach(button => {
-
-                    if (button.innerText !== "Reset Votes") {
-
-                        button.disabled = true;
-
-                        button.style.opacity = ".5";
-
-                        button.style.cursor = "not-allowed";
-
-                    }
-
+                    button.disabled = true;
+                    button.style.opacity = ".5";
+                    button.style.cursor = "not-allowed";
                 });
 
+                loadVotes();
             });
-
         });
 
-        // =======================
-        // RESET VOTES
-        // =======================
+        async function resetVotes() {
+            const confirmReset = confirm("are u sure u wanna reset all the votes ms rangi?");
+            if (!confirmReset) return;
 
-        function resetVotes() {
-
-            const confirmReset = confirm(
-                "Are you sureeeeeeeee you would like to reset these votes? What would max say..."
-            );
-
-            if (confirmReset) {
-
-                localStorage.removeItem("votes");
-
-                localStorage.removeItem("alreadyVoted");
-
-                location.reload();
-
-            }
-
-        }
-
-        // =======================
-        // IF ALREADY VOTED
-        // =======================
-
-        if (alreadyVoted) {
-
-            document.querySelectorAll(".vote-btn").forEach(button => {
-
-                if (button.innerText !== "Reset Votes") {
-
-                    button.disabled = true;
-
-                    button.style.opacity = ".5";
-
-                    button.style.cursor = "not-allowed";
-
-                }
-
+            await setDoc(voteRef, {
+                "True North Party": 0,
+                "Maple Leaf Party of Canada (MLPC)": 0,
+                "Mixed Freedom Party": 0,
+                "THE United Party": 0,
+                "Workers Association of Canada": 0,
+                "Canadian Stars Party": 0,
+                "Modern Future Party": 0,
+                "Parity Party": 0
             });
 
+            localStorage.removeItem("voted"); // 🔥 THIS FIXES IT
+
+            location.reload();
         }
 
+        window.resetVotes = resetVotes;
+
+        loadVotes();
     </script>
 
 </body>
