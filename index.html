@@ -533,6 +533,7 @@
 
                 localStorage.setItem("voted", "true");
                 voted = true;
+                localStorage.removeItem("voted");
 
                 document.getElementById("successBox").style.display = "block";
 
